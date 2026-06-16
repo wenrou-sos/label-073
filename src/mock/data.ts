@@ -62,6 +62,15 @@ export const orders: Order[] = [
   { id: 'ord-018', customerName: '韩梅', customerPhone: '13800018888', vehicleId: 'v-021', plateNumber: '京H70007', vehicleModel: '别克GL8', vehicleCategory: '商务型', pickupDate: offsetDate(-2), returnDate: offsetDate(1), actualReturnDate: '', returnMileage: 0, returnFuelLevel: 0, status: 'active', damages: [], extraCharges: 0, pickupDamages: [] },
   { id: 'ord-019', customerName: '田甜', customerPhone: '13800019999', vehicleId: 'v-024', plateNumber: '京J10010', vehicleModel: '奥迪Q5', vehicleCategory: 'SUV', pickupDate: offsetDate(-1), returnDate: offsetDate(2), actualReturnDate: '', returnMileage: 0, returnFuelLevel: 0, status: 'active', damages: [], extraCharges: 0, pickupDamages: [] },
   { id: 'ord-020', customerName: '冯刚', customerPhone: '13800020000', vehicleId: 'v-002', plateNumber: '京A23456', vehicleModel: '本田思域', vehicleCategory: '经济型', pickupDate: offsetDate(5), returnDate: offsetDate(8), actualReturnDate: '', returnMileage: 0, returnFuelLevel: 0, status: 'reserved', damages: [], extraCharges: 0, pickupDamages: [] },
+  { id: 'ord-021', customerName: '钱丽', customerPhone: '13800021111', vehicleId: 'v-002', plateNumber: '京A23456', vehicleModel: '本田思域', vehicleCategory: '经济型', pickupDate: offsetDate(-10), returnDate: offsetDate(-6), actualReturnDate: offsetDate(-6), returnMileage: 28500, returnFuelLevel: 75, status: 'returned', damages: [], extraCharges: 0, pickupDamages: [] },
+  { id: 'ord-022', customerName: '赵明', customerPhone: '13800022222', vehicleId: 'v-006', plateNumber: '京B22222', vehicleModel: '丰田凯美瑞', vehicleCategory: '舒适型', pickupDate: offsetDate(-12), returnDate: offsetDate(-8), actualReturnDate: offsetDate(-8), returnMileage: 32100, returnFuelLevel: 45, status: 'returned', damages: [
+    { id: 'dmg-hist-001', x: 35, y: 25, type: 'scratch', estimatedCost: 300, description: '划痕' },
+    { id: 'dmg-hist-002', x: 68, y: 70, type: 'dent', estimatedCost: 800, description: '凹陷' },
+  ], extraCharges: 1100, pickupDamages: [] },
+  { id: 'ord-023', customerName: '孙伟', customerPhone: '13800023333', vehicleId: 'v-010', plateNumber: '京C66666', vehicleModel: '本田CR-V', vehicleCategory: 'SUV', pickupDate: offsetDate(-8), returnDate: offsetDate(-3), actualReturnDate: offsetDate(-3), returnMileage: 37500, returnFuelLevel: 60, status: 'returned', damages: [
+    { id: 'dmg-hist-003', x: 20, y: 55, type: 'paint', estimatedCost: 500, description: '掉漆' },
+  ], extraCharges: 500, pickupDamages: [] },
+  { id: 'ord-024', customerName: '周杰', customerPhone: '13800024444', vehicleId: 'v-016', plateNumber: '京E20002', vehicleModel: '奔驰E级', vehicleCategory: '豪华型', pickupDate: offsetDate(-15), returnDate: offsetDate(-10), actualReturnDate: offsetDate(-10), returnMileage: 39200, returnFuelLevel: 90, status: 'returned', damages: [], extraCharges: 0, pickupDamages: [] },
 ]
 
 export const violations: Violation[] = [

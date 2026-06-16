@@ -68,6 +68,13 @@ export function useAppStore() {
     state.orders.filter((o) => o.status === 'returned')
   )
 
+  const storeCompletedOrders = computed(() =>
+    completedOrders.value.filter((o) => {
+      const vehicle = state.vehicles.find((v) => v.id === o.vehicleId)
+      return vehicle && vehicle.storeId === state.currentStoreId
+    })
+  )
+
   function getCategoryAvailability(category: string, date: string): { total: number; available: number; reserved: number } {
     const allVehicles = state.vehicles.filter(
       (v) => v.category === category && v.storeId === state.currentStoreId
@@ -300,6 +307,7 @@ export function useAppStore() {
     activeOrders,
     storeActiveOrders,
     completedOrders,
+    storeCompletedOrders,
     storeTransfers,
     isFromStore,
     isToStore,
