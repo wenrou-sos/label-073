@@ -6,7 +6,16 @@ import { TRANSFER_STATUS_LABELS, VEHICLE_CATEGORIES } from '@/types'
 import { stores } from '@/mock/data'
 import { Plus, ArrowRight, Truck, CheckCircle, MapPin, Clock, User, FileText, X } from 'lucide-vue-next'
 
-const { state, createTransferRequest, approveTransfer, shipTransfer, completeTransfer } = useAppStore()
+const {
+  state,
+  storeTransfers,
+  isFromStore,
+  isToStore,
+  createTransferRequest,
+  approveTransfer,
+  shipTransfer,
+  completeTransfer,
+} = useAppStore()
 
 type StatusFilter = 'all' | TransferRequest['status']
 
@@ -14,6 +23,7 @@ const activeFilter = ref<StatusFilter>('all')
 const showNewModal = ref(false)
 const showVehicleModal = ref(false)
 const activeTransferId = ref('')
+const transferError = ref('')
 
 const newForm = ref({
   fromStoreId: '',
@@ -35,8 +45,8 @@ const filterTabs: { label: string; value: StatusFilter }[] = [
 ]
 
 const filteredTransfers = computed(() => {
-  if (activeFilter.value === 'all') return state.transfers
-  return state.transfers.filter((t) => t.status === activeFilter.value)
+  if (activeFilter.value === 'all') return storeTransfers.value
+  return storeTransfers.value.filter((t) => t.status === activeFilter.value)
 })
 
 const fromStoreOptions = computed(() =>
@@ -48,7 +58,7 @@ const currentStore = computed(() =>
 )
 
 const availableVehicles = computed(() => {
-  const transfer = state.transfers.find((t) => t.id === activeTransferId.value)
+  const transfer = storeTransfers.value.find((t) => t.id === activeTransferId.value)
   if (!transfer) return []
   return state.vehicles.filter(
     (v) =>
@@ -106,6 +116,11 @@ function submitNewRequest() {
 }
 
 function openVehicleModal(transferId: string) {
+  if (!isFromStore(transferId)) {
+    transferError.value = '只有调出门店才能确认调车'
+    return
+  }
+  transferError.value = ''
   activeTransferId.value = transferId
   approveForm.value = { vehicleId: '', handler: '' }
   showVehicleModal.value = true
@@ -113,16 +128,39 @@ function openVehicleModal(transferId: string) {
 
 function submitApprove() {
   if (!approveForm.value.vehicleId || !approveForm.value.handler.trim()) return
-  approveTransfer(activeTransferId.value, approveForm.value.vehicleId, approveForm.value.handler.trim())
-  showVehicleModal.value = false
+  const success = approveTransfer(activeTransferId.value, approveForm.value.vehicleId, approveForm.value.handler.trim())
+  if (success) {
+    showVehicleModal.value = false
+    transferError.value = ''
+  } else {
+    transferError.value = '确认调车失败：权限不足或车辆信息有误'
+  }
 }
 
 function handleShip(transferId: string) {
-  shipTransfer(transferId)
+  if (!isFromStore(transferId)) {
+    transferError.value = '只有调出门店才能执行发车操作'
+    return
+  }
+  const success = shipTransfer(transferId)
+  if (!success) {
+    transferError.value = '发车失败：权限不足或状态有误'
+  } else {
+    transferError.value = ''
+  }
 }
 
 function handleComplete(transferId: string) {
-  completeTransfer(transferId)
+  if (!isToStore(transferId)) {
+    transferError.value = '只有调入门店才能确认到达'
+    return
+  }
+  const success = completeTransfer(transferId)
+  if (!success) {
+    transferError.value = '确认到达失败：权限不足或状态有误'
+  } else {
+    transferError.value = ''
+  }
 }
 
 function closeNewModal() {
@@ -162,6 +200,10 @@ function closeVehicleModal() {
       </button>
     </div>
 
+    <div v-if="transferError" class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+      {{ transferError }}
+    </div>
+
     <div v-if="filteredTransfers.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
       <Truck class="w-12 h-12 mb-3" />
       <p class="text-sm">暂无调车记录</p>
@@ -191,11 +233,13 @@ function closeVehicleModal() {
             <div class="flex items-center gap-1.5 text-sm">
               <MapPin class="w-3.5 h-3.5 text-slate-400" />
               <span class="font-medium text-slate-700">{{ transfer.fromStoreName }}</span>
+              <span v-if="isFromStore(transfer.id)" class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">调出方</span>
             </div>
             <ArrowRight class="w-4 h-4 text-slate-300" />
             <div class="flex items-center gap-1.5 text-sm">
               <MapPin class="w-3.5 h-3.5 text-blue-400" />
               <span class="font-medium text-slate-700">{{ transfer.toStoreName }}</span>
+              <span v-if="isToStore(transfer.id)" class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">调入方</span>
             </div>
           </div>
 
@@ -270,29 +314,47 @@ function closeVehicleModal() {
 
           <div v-if="transfer.status !== 'completed'" class="mt-4 flex gap-2">
             <button
-              v-if="transfer.status === 'pending'"
+              v-if="transfer.status === 'pending' && isFromStore(transfer.id)"
               class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 transition-colors"
               @click="openVehicleModal(transfer.id)"
             >
               <CheckCircle class="w-4 h-4" />
               确认调车
             </button>
+            <div
+              v-if="transfer.status === 'pending' && !isFromStore(transfer.id)"
+              class="flex-1 flex items-center justify-center px-3 py-2 bg-slate-100 text-slate-400 text-sm rounded-lg cursor-not-allowed"
+            >
+              待对方门店确认
+            </div>
             <button
-              v-if="transfer.status === 'approved'"
+              v-if="transfer.status === 'approved' && isFromStore(transfer.id)"
               class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
               @click="handleShip(transfer.id)"
             >
               <Truck class="w-4 h-4" />
               发车
             </button>
+            <div
+              v-if="transfer.status === 'approved' && !isFromStore(transfer.id)"
+              class="flex-1 flex items-center justify-center px-3 py-2 bg-slate-100 text-slate-400 text-sm rounded-lg cursor-not-allowed"
+            >
+              待对方门店发车
+            </div>
             <button
-              v-if="transfer.status === 'in_transit'"
+              v-if="transfer.status === 'in_transit' && isToStore(transfer.id)"
               class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
               @click="handleComplete(transfer.id)"
             >
               <CheckCircle class="w-4 h-4" />
               确认到达
             </button>
+            <div
+              v-if="transfer.status === 'in_transit' && !isToStore(transfer.id)"
+              class="flex-1 flex items-center justify-center px-3 py-2 bg-slate-100 text-slate-400 text-sm rounded-lg cursor-not-allowed"
+            >
+              运输中
+            </div>
           </div>
         </div>
       </div>

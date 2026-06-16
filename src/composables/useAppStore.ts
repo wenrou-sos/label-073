@@ -23,11 +23,21 @@ export function useAppStore() {
   )
 
   const todayPickupCount = computed(() =>
-    state.orders.filter((o) => o.pickupDate === today).filter((o) => o.status === 'reserved').length
+    state.orders
+      .filter((o) => o.pickupDate === today && o.status === 'reserved')
+      .filter((o) => {
+        const v = state.vehicles.find((veh) => veh.id === o.vehicleId)
+        return v && v.storeId === state.currentStoreId
+      }).length
   )
 
   const todayReturnCount = computed(() =>
-    state.orders.filter((o) => o.returnDate === today).filter((o) => o.status === 'active' || o.status === 'overdue').length
+    state.orders
+      .filter((o) => o.returnDate === today && (o.status === 'active' || o.status === 'overdue'))
+      .filter((o) => {
+        const v = state.vehicles.find((veh) => veh.id === o.vehicleId)
+        return v && v.storeId === state.currentStoreId
+      }).length
   )
 
   const availableVehicleCount = computed(() =>
@@ -35,7 +45,12 @@ export function useAppStore() {
   )
 
   const pendingViolationCount = computed(() =>
-    state.violations.filter((v) => v.status !== 'completed').length
+    state.violations
+      .filter((v) => v.status !== 'completed')
+      .filter((vio) => {
+        const v = state.vehicles.find((veh) => veh.plateNumber === vio.plateNumber)
+        return v && v.storeId === state.currentStoreId
+      }).length
   )
 
   const activeOrders = computed(() =>
@@ -58,9 +73,10 @@ export function useAppStore() {
       (v) => v.category === category && v.storeId === state.currentStoreId
     )
     const total = allVehicles.length
+    const vehicleIds = allVehicles.map((v) => v.id)
     const reservedOnDate = state.orders.filter(
       (o) =>
-        o.vehicleCategory === category &&
+        vehicleIds.includes(o.vehicleId) &&
         o.status !== 'returned' &&
         o.pickupDate <= date &&
         o.returnDate >= date
@@ -72,9 +88,13 @@ export function useAppStore() {
   }
 
   function getOrdersForCategoryDate(category: string, date: string): Order[] {
+    const categoryVehicles = state.vehicles.filter(
+      (v) => v.category === category && v.storeId === state.currentStoreId
+    )
+    const vehicleIds = categoryVehicles.map((v) => v.id)
     return state.orders.filter(
       (o) =>
-        o.vehicleCategory === category &&
+        vehicleIds.includes(o.vehicleId) &&
         o.status !== 'returned' &&
         o.pickupDate <= date &&
         o.returnDate >= date
@@ -198,11 +218,28 @@ export function useAppStore() {
     state.transfers.unshift(tf)
   }
 
-  function approveTransfer(transferId: string, vehicleId: string, handler: string) {
+  const storeTransfers = computed(() =>
+    state.transfers.filter(
+      (t) => t.fromStoreId === state.currentStoreId || t.toStoreId === state.currentStoreId
+    )
+  )
+
+  function isFromStore(transferId: string): boolean {
     const tf = state.transfers.find((t) => t.id === transferId)
-    if (!tf || tf.status !== 'pending') return
+    return tf ? tf.fromStoreId === state.currentStoreId : false
+  }
+
+  function isToStore(transferId: string): boolean {
+    const tf = state.transfers.find((t) => t.id === transferId)
+    return tf ? tf.toStoreId === state.currentStoreId : false
+  }
+
+  function approveTransfer(transferId: string, vehicleId: string, handler: string): boolean {
+    const tf = state.transfers.find((t) => t.id === transferId)
+    if (!tf || tf.status !== 'pending') return false
+    if (tf.fromStoreId !== state.currentStoreId) return false
     const vehicle = state.vehicles.find((v) => v.id === vehicleId)
-    if (!vehicle) return
+    if (!vehicle || vehicle.storeId !== state.currentStoreId) return false
 
     tf.status = 'approved'
     tf.approvedTime = formatDate(new Date()) + ' ' + new Date().toTimeString().slice(0, 5)
@@ -210,17 +247,21 @@ export function useAppStore() {
     tf.vehiclePlateNumber = vehicle.plateNumber
     tf.handler = handler
     vehicle.status = 'transferring'
+    return true
   }
 
-  function shipTransfer(transferId: string) {
+  function shipTransfer(transferId: string): boolean {
     const tf = state.transfers.find((t) => t.id === transferId)
-    if (!tf || tf.status !== 'approved') return
+    if (!tf || tf.status !== 'approved') return false
+    if (tf.fromStoreId !== state.currentStoreId) return false
     tf.status = 'in_transit'
+    return true
   }
 
-  function completeTransfer(transferId: string) {
+  function completeTransfer(transferId: string): boolean {
     const tf = state.transfers.find((t) => t.id === transferId)
-    if (!tf || tf.status !== 'in_transit') return
+    if (!tf || tf.status !== 'in_transit') return false
+    if (tf.toStoreId !== state.currentStoreId) return false
     tf.status = 'completed'
     tf.arrivalTime = formatDate(new Date()) + ' ' + new Date().toTimeString().slice(0, 5)
 
@@ -231,6 +272,7 @@ export function useAppStore() {
         vehicle.status = 'available'
       }
     }
+    return true
   }
 
   function addImportedViolations(items: Omit<Violation, 'id' | 'matchedOrderId' | 'matchedCustomer' | 'matchedCustomerPhone' | 'status' | 'handlingMethod'>[]) {
@@ -258,6 +300,9 @@ export function useAppStore() {
     activeOrders,
     storeActiveOrders,
     completedOrders,
+    storeTransfers,
+    isFromStore,
+    isToStore,
     getCategoryAvailability,
     getOrdersForCategoryDate,
     returnVehicle,
