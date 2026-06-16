@@ -42,6 +42,13 @@ export function useAppStore() {
     state.orders.filter((o) => o.status === 'active' || o.status === 'overdue')
   )
 
+  const storeActiveOrders = computed(() =>
+    activeOrders.value.filter((o) => {
+      const vehicle = state.vehicles.find((v) => v.id === o.vehicleId)
+      return vehicle && vehicle.storeId === state.currentStoreId
+    })
+  )
+
   const completedOrders = computed(() =>
     state.orders.filter((o) => o.status === 'returned')
   )
@@ -79,9 +86,14 @@ export function useAppStore() {
     mileage: number,
     fuelLevel: number,
     damages: Damage[]
-  ) {
+  ): boolean {
     const order = state.orders.find((o) => o.id === orderId)
-    if (!order) return
+    if (!order) return false
+
+    const vehicle = state.vehicles.find((v) => v.id === order.vehicleId)
+    if (!vehicle || vehicle.storeId !== state.currentStoreId) {
+      return false
+    }
 
     const totalDamageCost = damages.reduce((sum, d) => sum + d.estimatedCost, 0)
 
@@ -92,12 +104,11 @@ export function useAppStore() {
     order.damages = damages
     order.extraCharges = totalDamageCost
 
-    const vehicle = state.vehicles.find((v) => v.id === order.vehicleId)
-    if (vehicle) {
-      vehicle.status = 'available'
-      vehicle.currentMileage = mileage
-      vehicle.fuelLevel = fuelLevel
-    }
+    vehicle.status = 'available'
+    vehicle.currentMileage = mileage
+    vehicle.fuelLevel = fuelLevel
+
+    return true
   }
 
   function addDamageToOrder(orderId: string, damage: Damage): number {
@@ -245,6 +256,7 @@ export function useAppStore() {
     availableVehicleCount,
     pendingViolationCount,
     activeOrders,
+    storeActiveOrders,
     completedOrders,
     getCategoryAvailability,
     getOrdersForCategoryDate,

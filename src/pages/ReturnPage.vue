@@ -5,7 +5,7 @@ import type { Damage, DamageType, Order } from '@/types'
 import { DAMAGE_TYPE_LABELS, DAMAGE_COST_MAP, ORDER_STATUS_LABELS } from '@/types'
 import { Upload, Trash2, Check, ChevronRight, ChevronLeft, Car } from 'lucide-vue-next'
 
-const { activeOrders, returnVehicle, estimateDamageCost } = useAppStore()
+const { storeActiveOrders, returnVehicle, estimateDamageCost } = useAppStore()
 
 const step = ref(1)
 const selectedOrder = ref<Order | null>(null)
@@ -26,6 +26,7 @@ function selectOrder(order: Order) {
 }
 
 function goBack() {
+  returnError.value = ''
   if (step.value === 2) {
     selectedOrder.value = null
     mileage.value = 0
@@ -71,9 +72,16 @@ const totalDamageCost = computed(() =>
   damages.value.reduce((sum, d) => sum + d.estimatedCost, 0)
 )
 
+const returnError = ref('')
+
 function confirmReturn() {
   if (!selectedOrder.value) return
-  returnVehicle(selectedOrder.value.id, mileage.value, fuelLevel.value, damages.value)
+  const success = returnVehicle(selectedOrder.value.id, mileage.value, fuelLevel.value, damages.value)
+  if (!success) {
+    returnError.value = '还车失败：该车辆不属于当前门店，无法办理还车手续'
+    return
+  }
+  returnError.value = ''
   selectedOrder.value = null
   mileage.value = 0
   fuelLevel.value = 80
@@ -137,7 +145,7 @@ function confirmReturn() {
           </thead>
           <tbody>
             <tr
-              v-for="order in activeOrders"
+              v-for="order in storeActiveOrders"
               :key="order.id"
               class="border-t border-slate-50 hover:bg-blue-50 cursor-pointer transition-colors"
               @click="selectOrder(order)"
@@ -159,7 +167,7 @@ function confirmReturn() {
                 >{{ ORDER_STATUS_LABELS[order.status] }}</span>
               </td>
             </tr>
-            <tr v-if="activeOrders.length === 0">
+            <tr v-if="storeActiveOrders.length === 0">
               <td colspan="7" class="px-4 py-12 text-center text-slate-400">暂无待还车订单</td>
             </tr>
           </tbody>
@@ -359,6 +367,10 @@ function confirmReturn() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div v-if="returnError" class="p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+        {{ returnError }}
       </div>
 
       <div class="flex justify-between">
