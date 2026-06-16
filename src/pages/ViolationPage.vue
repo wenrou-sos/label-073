@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useAppStore } from '@/composables/useAppStore'
 import type { Violation } from '@/types'
 import { VIOLATION_STATUS_LABELS } from '@/types'
-import { Plus, Filter, Send, CheckCircle, User, Phone, Loader } from 'lucide-vue-next'
+import { Plus, Filter, Send, CheckCircle, User, Phone, Loader, Download } from 'lucide-vue-next'
 
 const { state, matchViolation, notifyViolation, processViolation, completeViolation, addImportedViolations } = useAppStore()
 
@@ -71,6 +71,30 @@ const handlingMethodLabel: Record<Violation['handlingMethod'], string> = {
   self: '自行处理',
   agency: '门店代办',
 }
+
+function exportCSV() {
+  const headers = ['车牌号', '违章时间', '违章地点', '违章类型', '扣分', '罚款', '匹配状态', '租客姓名', '租客电话', '处理方式']
+  const rows = filteredViolations.value.map((v) => [
+    v.plateNumber,
+    v.violationTime,
+    v.location,
+    v.violationType,
+    String(v.points),
+    String(v.fine),
+    VIOLATION_STATUS_LABELS[v.status],
+    v.matchedCustomer || '',
+    v.matchedCustomerPhone || '',
+    v.status === 'pending' ? '' : handlingMethodLabel[v.handlingMethod],
+  ])
+  const csvContent = '\uFEFF' + [headers, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `违章记录_${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 </script>
 
 <template>
@@ -92,13 +116,24 @@ const handlingMethodLabel: Record<Violation['handlingMethod'], string> = {
           {{ sf.label }}
         </button>
       </div>
-      <button
-        class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-        @click="showImportModal = true"
-      >
-        <Plus class="w-4 h-4" />
-        导入违章
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          class="flex items-center gap-1.5 px-4 py-2 bg-white text-slate-600 text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors"
+          :disabled="filteredViolations.length === 0"
+          :class="{ 'opacity-50 cursor-not-allowed': filteredViolations.length === 0 }"
+          @click="exportCSV"
+        >
+          <Download class="w-4 h-4" />
+          导出CSV
+        </button>
+        <button
+          class="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+          @click="showImportModal = true"
+        >
+          <Plus class="w-4 h-4" />
+          导入违章
+        </button>
+      </div>
     </div>
 
     <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
