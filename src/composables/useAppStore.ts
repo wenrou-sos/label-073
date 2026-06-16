@@ -44,13 +44,15 @@ export function useAppStore() {
     storeVehicles.value.filter((v) => v.status === 'available').length
   )
 
+  const storeViolations = computed(() =>
+    state.violations.filter((vio) => {
+      const v = state.vehicles.find((veh) => veh.plateNumber === vio.plateNumber)
+      return v && v.storeId === state.currentStoreId
+    })
+  )
+
   const pendingViolationCount = computed(() =>
-    state.violations
-      .filter((v) => v.status !== 'completed')
-      .filter((vio) => {
-        const v = state.vehicles.find((veh) => veh.plateNumber === vio.plateNumber)
-        return v && v.storeId === state.currentStoreId
-      }).length
+    storeViolations.value.filter((v) => v.status !== 'completed').length
   )
 
   const activeOrders = computed(() =>
@@ -300,6 +302,7 @@ export function useAppStore() {
   return {
     state,
     storeVehicles,
+    storeViolations,
     todayPickupCount,
     todayReturnCount,
     availableVehicleCount,

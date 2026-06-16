@@ -5,7 +5,7 @@ import type { Violation } from '@/types'
 import { VIOLATION_STATUS_LABELS } from '@/types'
 import { Plus, Filter, Send, CheckCircle, User, Phone, Loader, Download } from 'lucide-vue-next'
 
-const { state, matchViolation, notifyViolation, processViolation, completeViolation, addImportedViolations } = useAppStore()
+const { state, storeViolations, matchViolation, notifyViolation, processViolation, completeViolation, addImportedViolations } = useAppStore()
 
 type StatusFilter = 'all' | Violation['status']
 const statusFilter = ref<StatusFilter>('all')
@@ -21,8 +21,8 @@ const statusFilters: { value: StatusFilter; label: string }[] = [
 ]
 
 const filteredViolations = computed(() => {
-  if (statusFilter.value === 'all') return state.violations
-  return state.violations.filter((v) => v.status === statusFilter.value)
+  if (statusFilter.value === 'all') return storeViolations
+  return storeViolations.filter((v) => v.status === statusFilter.value)
 })
 
 const statusBadgeClass: Record<Violation['status'], string> = {
