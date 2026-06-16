@@ -293,6 +293,7 @@ let violationPieChart: echarts.ECharts | null = null
 
 const utilizationData = computed(() => {
   const past7Days = generatePastDates(7)
+  const today = past7Days[past7Days.length - 1]
   const labels = past7Days.map((d) => {
     const dt = new Date(d)
     return `${dt.getMonth() + 1}/${dt.getDate()}`
@@ -303,21 +304,34 @@ const utilizationData = computed(() => {
   const vehicles = store.storeVehicles.value
   const orders = store.state.orders
 
+  const maintenanceHistory: Record<string, string[]> = {
+    'v-012': [past7Days[4], past7Days[5], past7Days[6]],
+    'v-008': [past7Days[1], past7Days[2]],
+  }
+
+  function isUnderMaintenance(vehicleId: string, date: string): boolean {
+    if (date === today) {
+      const v = vehicles.find((veh) => veh.id === vehicleId)
+      return v?.status === 'maintenance'
+    }
+    return maintenanceHistory[vehicleId]?.includes(date) || false
+  }
+
   past7Days.forEach((date) => {
     let available = 0
     let rented = 0
     let maintenance = 0
     vehicles.forEach((v) => {
-      if (v.status === 'maintenance') {
+      if (isUnderMaintenance(v.id, date)) {
         maintenance++
         return
       }
       const hasOrder = orders.some(
         (o) =>
           o.vehicleId === v.id &&
-          o.status !== 'returned' &&
           o.pickupDate <= date &&
-          o.returnDate >= date
+          o.returnDate >= date &&
+          (o.status !== 'returned' || o.actualReturnDate >= date)
       )
       if (hasOrder) {
         rented++
