@@ -86,6 +86,21 @@
       </div>
     </div>
 
+    <div class="grid grid-cols-2 gap-6">
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+          <h2 class="text-base font-semibold text-slate-800">近7天车辆利用率</h2>
+        </div>
+        <div ref="utilizationChartRef" class="w-full" style="min-height: 320px" />
+      </div>
+      <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200">
+          <h2 class="text-base font-semibold text-slate-800">违章类型分布</h2>
+        </div>
+        <div ref="violationPieChartRef" class="w-full" style="min-height: 320px" />
+      </div>
+    </div>
+
     <Teleport to="body">
       <Transition name="drawer">
         <div v-if="drawerOpen" class="fixed inset-0 z-50" @click.self="closeDrawer">
@@ -152,8 +167,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Car, RotateCcw, AlertTriangle, Package, X } from 'lucide-vue-next'
+import * as echarts from 'echarts'
 import { useAppStore } from '@/composables/useAppStore'
 import type { Order } from '@/types'
 import { VEHICLE_CATEGORIES, ORDER_STATUS_LABELS } from '@/types'
@@ -177,6 +193,17 @@ function generateDateColumns() {
     })
   }
   return columns
+}
+
+function generatePastDates(count: number) {
+  const dates: string[] = []
+  const now = new Date()
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    dates.push(d.toISOString().slice(0, 10))
+  }
+  return dates
 }
 
 const dateColumns = generateDateColumns()
@@ -258,6 +285,222 @@ function statusBadgeClass(status: Order['status']): string {
       return 'bg-slate-100 text-slate-600'
   }
 }
+
+const utilizationChartRef = ref<HTMLElement>()
+const violationPieChartRef = ref<HTMLElement>()
+let utilizationChart: echarts.ECharts | null = null
+let violationPieChart: echarts.ECharts | null = null
+
+const utilizationData = computed(() => {
+  const past7Days = generatePastDates(7)
+  const labels = past7Days.map((d) => {
+    const dt = new Date(d)
+    return `${dt.getMonth() + 1}/${dt.getDate()}`
+  })
+  const availableArr: number[] = []
+  const rentedArr: number[] = []
+  const maintenanceArr: number[] = []
+  const vehicles = store.storeVehicles.value
+  const orders = store.state.orders
+
+  past7Days.forEach((date) => {
+    let available = 0
+    let rented = 0
+    let maintenance = 0
+    vehicles.forEach((v) => {
+      if (v.status === 'maintenance') {
+        maintenance++
+        return
+      }
+      const hasOrder = orders.some(
+        (o) =>
+          o.vehicleId === v.id &&
+          o.status !== 'returned' &&
+          o.pickupDate <= date &&
+          o.returnDate >= date
+      )
+      if (hasOrder) {
+        rented++
+      } else {
+        available++
+      }
+    })
+    availableArr.push(available)
+    rentedArr.push(rented)
+    maintenanceArr.push(maintenance)
+  })
+
+  return { labels, availableArr, rentedArr, maintenanceArr }
+})
+
+const violationTypeData = computed(() => {
+  const typeMap: Record<string, number> = {}
+  store.storeViolations.value.forEach((v) => {
+    typeMap[v.violationType] = (typeMap[v.violationType] || 0) + 1
+  })
+  return Object.entries(typeMap).map(([name, value]) => ({ name, value }))
+})
+
+function initUtilizationChart() {
+  if (!utilizationChartRef.value) return
+  utilizationChart = echarts.init(utilizationChartRef.value)
+  updateUtilizationChart()
+}
+
+function updateUtilizationChart() {
+  if (!utilizationChart) return
+  const { labels, availableArr, rentedArr, maintenanceArr } = utilizationData.value
+  utilizationChart.setOption(
+    {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+      },
+      legend: {
+        data: ['在库', '出租', '维修'],
+        bottom: 0,
+      },
+      grid: { top: 20, right: 20, bottom: 40, left: 50 },
+      xAxis: {
+        type: 'category',
+        data: labels,
+        axisTick: { show: false },
+        axisLine: { lineStyle: { color: '#e2e8f0' } },
+        axisLabel: { color: '#64748b' },
+      },
+      yAxis: {
+        type: 'value',
+        minInterval: 1,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: '#f1f5f9' } },
+        axisLabel: { color: '#64748b' },
+      },
+      series: [
+        {
+          name: '在库',
+          type: 'line',
+          data: availableArr,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: { color: '#22c55e' },
+          lineStyle: { width: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(34,197,94,0.2)' },
+              { offset: 1, color: 'rgba(34,197,94,0.02)' },
+            ]),
+          },
+        },
+        {
+          name: '出租',
+          type: 'line',
+          data: rentedArr,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: { color: '#3b82f6' },
+          lineStyle: { width: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(59,130,246,0.2)' },
+              { offset: 1, color: 'rgba(59,130,246,0.02)' },
+            ]),
+          },
+        },
+        {
+          name: '维修',
+          type: 'line',
+          data: maintenanceArr,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 6,
+          itemStyle: { color: '#f59e0b' },
+          lineStyle: { width: 2 },
+          areaStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+              { offset: 0, color: 'rgba(245,158,11,0.2)' },
+              { offset: 1, color: 'rgba(245,158,11,0.02)' },
+            ]),
+          },
+        },
+      ],
+    },
+    true
+  )
+}
+
+function initViolationPieChart() {
+  if (!violationPieChartRef.value) return
+  violationPieChart = echarts.init(violationPieChartRef.value)
+  updateViolationPieChart()
+}
+
+function updateViolationPieChart() {
+  if (!violationPieChart) return
+  const data = violationTypeData.value
+  violationPieChart.setOption(
+    {
+      tooltip: {
+        trigger: 'item',
+        formatter: '{b}: {c}起 ({d}%)',
+      },
+      legend: {
+        orient: 'vertical',
+        right: 20,
+        top: 'center',
+        textStyle: { color: '#64748b' },
+      },
+      series: [
+        {
+          type: 'pie',
+          radius: ['40%', '70%'],
+          center: ['35%', '50%'],
+          avoidLabelOverlap: false,
+          padAngle: 2,
+          itemStyle: { borderRadius: 6 },
+          label: {
+            show: false,
+          },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 14,
+              fontWeight: 'bold',
+            },
+          },
+          data: data.length > 0
+            ? data
+            : [{ name: '暂无数据', value: 0, itemStyle: { color: '#e2e8f0' } }],
+        },
+      ],
+      color: ['#3b82f6', '#f59e0b', '#ef4444', '#22c55e', '#8b5cf6', '#ec4899'],
+    },
+    true
+  )
+}
+
+function handleResize() {
+  utilizationChart?.resize()
+  violationPieChart?.resize()
+}
+
+onMounted(() => {
+  nextTick(() => {
+    initUtilizationChart()
+    initViolationPieChart()
+    window.addEventListener('resize', handleResize)
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  utilizationChart?.dispose()
+  violationPieChart?.dispose()
+  utilizationChart = null
+  violationPieChart = null
+})
 </script>
 
 <style scoped>
