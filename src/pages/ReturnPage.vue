@@ -1,20 +1,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useAppStore } from '@/composables/useAppStore'
+import { useReturnForm } from '@/composables/useReturnForm'
 import type { Damage, DamageType, Order } from '@/types'
 import { DAMAGE_TYPE_LABELS, DAMAGE_COST_MAP, ORDER_STATUS_LABELS } from '@/types'
 import { Upload, Trash2, Check, ChevronRight, ChevronLeft, Car, X, Eye, FileText, Fuel, Gauge, AlertCircle } from 'lucide-vue-next'
 
 const { storeActiveOrders, storeCompletedOrders, returnVehicle, estimateDamageCost } = useAppStore()
 
-const activeTab = ref<'pending' | 'history'>('pending')
-const step = ref(1)
-const selectedOrder = ref<Order | null>(null)
-const mileage = ref<number>(0)
-const fuelLevel = ref<number>(80)
-const damages = ref<Damage[]>([])
-const pendingClickPos = ref<{ x: number; y: number } | null>(null)
+const {
+  step,
+  selectedOrder,
+  mileage,
+  fuelLevel,
+  damages,
+  pendingClickPos,
+  returnError,
+  resetForm,
+  selectOrder,
+  goBack,
+} = useReturnForm()
 
+const activeTab = ref<'pending' | 'history'>('pending')
 const showDetailModal = ref(false)
 const detailOrder = ref<Order | null>(null)
 
@@ -29,11 +36,6 @@ const tabOptions = [
   { label: '已还车历史', value: 'history' as const, count: computed(() => storeCompletedOrders.value.length) },
 ]
 
-function selectOrder(order: Order) {
-  selectedOrder.value = order
-  step.value = 2
-}
-
 function viewOrderDetail(order: Order) {
   detailOrder.value = order
   showDetailModal.value = true
@@ -42,19 +44,6 @@ function viewOrderDetail(order: Order) {
 function closeDetailModal() {
   showDetailModal.value = false
   detailOrder.value = null
-}
-
-function goBack() {
-  returnError.value = ''
-  if (step.value === 2) {
-    selectedOrder.value = null
-    mileage.value = 0
-    fuelLevel.value = 80
-  }
-  if (step.value === 3) {
-    damages.value = []
-  }
-  step.value--
 }
 
 function goToStep3() {
@@ -91,7 +80,12 @@ const totalDamageCost = computed(() =>
   damages.value.reduce((sum, d) => sum + d.estimatedCost, 0)
 )
 
-const returnError = ref('')
+function handleTabChange(tab: 'pending' | 'history') {
+  if (activeTab.value === 'pending' && tab === 'history') {
+    resetForm()
+  }
+  activeTab.value = tab
+}
 
 function confirmReturn() {
   if (!selectedOrder.value) return
@@ -100,13 +94,7 @@ function confirmReturn() {
     returnError.value = '还车失败：该车辆不属于当前门店，无法办理还车手续'
     return
   }
-  returnError.value = ''
-  selectedOrder.value = null
-  mileage.value = 0
-  fuelLevel.value = 80
-  damages.value = []
-  pendingClickPos.value = null
-  step.value = 1
+  resetForm()
 }
 
 function getDaysDiff(date1: string, date2: string): number {
@@ -140,7 +128,7 @@ function getTotalCost(order: Order): number {
             ? 'bg-blue-600 text-white shadow-sm'
             : 'text-slate-600 hover:bg-slate-100',
         ]"
-        @click="activeTab = tab.value; step = 1"
+        @click="handleTabChange(tab.value)"
       >
         {{ tab.label }}
         <span
